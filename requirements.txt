@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────────
+# Crear entorno e instalar:
+#   python -m venv venv
+#   venv\Scripts\activate          (Windows)
+#   source venv/bin/activate       (Linux/Mac)
+#   pip install -r requirements.txt
+# ─────────────────────────────────────────────────────────────────
+
+# ── ETL ──────────────────────────────────────────────────────────
+pandas>=2.0.0
+matplotlib>=3.7.0
+seaborn>=0.13.0
+
+# ── Notebooks ────────────────────────────────────────────────────
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# ── API (Overpass y otras) ───────────────────────────────────────
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# ── Base de Datos ─────────────────────────────────────────────────
+mysql-connector-python>=8.0.0
+sqlalchemy>=2.0.0
+pymysql>=1.1.0
+
+# ── Dashboard ─────────────────────────────────────────────────────
+streamlit>=1.30.0
+plotly>=5.18.0
+
+# ── Tests ────────────────────────────────────────────────────────
+pytest>=7.0.0
