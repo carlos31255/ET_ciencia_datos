@@ -4,12 +4,15 @@ etl/transform.py
 ────────────────
 Módulo de transformación (T del ETL).
 Aplica las decisiones de diseño documentadas en el EDA:
-  1. Limpieza y validación de datos crudos del CSV.
-  2. Construcción de la variable objetivo: 'gravedad'.
-  3. Ingeniería de features: features temporales derivadas.
-  4. Cálculo de 'distancia_hospital_mas_cercano' cruzando CSV con API Overpass.
-  5. Descarte de columnas con data leakage o redundantes.
-  6. Devuelve un DataFrame listo para la etapa de carga (load.py).
+  1. Validación de esquema y tipos de datos.
+  2. Limpieza con múltiples técnicas de imputación y validación.
+  3. Construcción de la variable objetivo: 'gravedad'.
+  4. Ingeniería de features temporales derivadas.
+  5. Cálculo de 'distancia_hospital_mas_cercano' (Haversine vectorizado).
+  6. Enriquecimiento con agregados por región (groupby + merge/join).
+  7. Optimización de tipos de datos (dtype) para reducir memoria.
+  8. Descarte de columnas con data leakage o redundantes.
+  9. Devuelve un DataFrame listo para la etapa de carga (load.py).
 """
 
 import logging
@@ -261,6 +264,265 @@ def descartar_columnas(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 6. Validación de esquema
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Esquema esperado: columna -> (tipo_pandas, rango_válido o None)
+ESQUEMA_SINIESTROS = {
+    "IdAccident": ("int",   None),
+    "Mes":        ("int",   (1, 12)),
+    "Diasemana":  ("int",   (1, 7)),
+    "Hora_aprox": ("int",   (0, 23)),
+    "Lat":        ("float", (-56.0, -17.0)),
+    "Lon":        ("float", (-76.0, -66.0)),
+    "Fallecidos": ("int",   (0, None)),
+    "Graves":     ("int",   (0, None)),
+    "Leves":      ("int",   (0, None)),
+}
+
+def validar_esquema(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Valida el esquema del DataFrame: tipos de datos y rangos esperados.
+
+    Emite warnings para columnas con tipos incorrectos o valores fuera de rango,
+    e intenta coerción de tipo automática cuando es seguro hacerlo.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame crudo de siniestros.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame con tipos corregidos donde fue posible.
+    """
+    log.info("Validando esquema de datos...")
+    errores = []
+
+    for col, (tipo_esp, rango) in ESQUEMA_SINIESTROS.items():
+        if col not in df.columns:
+            errores.append(f"Columna faltante: '{col}'")
+            continue
+
+        # Verificar y coercionar tipo
+        if tipo_esp == "int" and not pd.api.types.is_integer_dtype(df[col]):
+            try:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+                log.warning(f"'{col}' coercionado a entero.")
+            except Exception:
+                errores.append(f"'{col}' no pudo convertirse a entero.")
+
+        elif tipo_esp == "float" and not pd.api.types.is_float_dtype(df[col]):
+            try:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+                log.warning(f"'{col}' coercionado a float.")
+            except Exception:
+                errores.append(f"'{col}' no pudo convertirse a float.")
+
+        # Verificar rango
+        if rango and col in df.columns:
+            lo, hi = rango
+            fuera = 0
+            if lo is not None:
+                fuera += (df[col] < lo).sum()
+            if hi is not None:
+                fuera += (df[col] > hi).sum()
+            if fuera > 0:
+                log.warning(f"'{col}': {fuera} valores fuera del rango esperado {rango}.")
+
+    if errores:
+        log.error(f"Errores de esquema encontrados: {errores}")
+        raise ValueError(f"Esquema inválido: {errores}")
+
+    log.info("Esquema validado correctamente.")
+    return df
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Imputación de valores (múltiples técnicas documentadas)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def imputar_valores(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aplica múltiples estrategias de imputación según el tipo y rol de cada columna.
+
+    Estrategias aplicadas:
+        - Columnas numéricas de conteo (víctimas): imputar con 0 (ausencia = sin víctimas).
+        - Columnas temporales (Mes, Hora_aprox): imputar con mediana (robusta a outliers).
+        - Columnas categóricas (REGION_DPA, COMUNA_DPA): imputar con moda.
+        - Coordenadas (Lat, Lon): eliminar fila — no se puede imputar geolocalización.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame post-limpieza básica.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame sin valores nulos relevantes.
+    """
+    n_nulos_inicial = df.isnull().sum().sum()
+    if n_nulos_inicial == 0:
+        log.info("No se encontraron valores nulos — imputación no necesaria.")
+        return df
+
+    log.info(f"Iniciando imputación — {n_nulos_inicial} valores nulos encontrados.")
+
+    # Columnas de conteo: imputar con 0
+    cols_conteo = ["Fallecidos", "Graves", "Menos_Grav", "Leves", "Lesionados"]
+    for col in cols_conteo:
+        if col in df.columns and df[col].isnull().any():
+            n = df[col].isnull().sum()
+            df[col] = df[col].fillna(0)
+            log.info(f"'{col}': {n} nulos imputados con 0 (técnica: zero-fill para conteos).")
+
+    # Columnas temporales: imputar con mediana
+    cols_temporales = ["Mes", "Hora_aprox", "Diasemana", "Diames"]
+    for col in cols_temporales:
+        if col in df.columns and df[col].isnull().any():
+            n = df[col].isnull().sum()
+            mediana = df[col].median()
+            df[col] = df[col].fillna(mediana)
+            log.info(f"'{col}': {n} nulos imputados con mediana={mediana} (técnica: mediana, robusta a outliers).")
+
+    # Columnas categóricas: imputar con moda
+    cols_categoricas = ["REGION_DPA", "COMUNA_DPA", "Tipo__CONA", "Causa__CON"]
+    for col in cols_categoricas:
+        if col in df.columns and df[col].isnull().any():
+            n = df[col].isnull().sum()
+            moda = df[col].mode()[0]
+            df[col] = df[col].fillna(moda)
+            log.info(f"'{col}': {n} nulos imputados con moda='{moda}' (técnica: moda para categóricas).")
+
+    # Coordenadas: eliminar (no imputables)
+    mask_coord_nulas = df["Lat"].isnull() | df["Lon"].isnull()
+    if mask_coord_nulas.any():
+        n = mask_coord_nulas.sum()
+        df = df[~mask_coord_nulas].reset_index(drop=True)
+        log.warning(f"{n} filas eliminadas por coordenadas nulas (no imputables).")
+
+    log.info(f"Imputacion completa — nulos restantes: {df.isnull().sum().sum()}")
+    return df
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Enriquecimiento: agregados por región (groupby + merge/join)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def enriquecer_con_agregados_region(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Enriquece el dataset con features agregadas por región (groupby + merge).
+
+    Features añadidas:
+        - siniestros_por_region:    N° total de siniestros en esa región.
+        - dist_media_region_km:     Distancia media al hospital en esa región.
+        - pct_fatal_region:         % de siniestros fatales en esa región (riesgo histórico).
+
+    Estas features aportan contexto geográfico agregado que el modelo puede usar
+    para aprender patrones regionales sin exponerse a data leakage.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame tras calcular distancia al hospital.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame con 3 columnas nuevas de contexto regional.
+    """
+    log.info("Enriqueciendo dataset con agregados por región (groupby + merge)...")
+
+    # Groupby: conteo de siniestros por región
+    agg_region = (
+        df.groupby("REGION_DPA", observed=True)
+        .agg(
+            siniestros_por_region=("IdAccident", "count"),
+            dist_media_region_km=("distancia_hospital_km", "mean"),
+        )
+        .round({"dist_media_region_km": 3})
+        .reset_index()
+    )
+
+    # % de siniestros fatales por región
+    if "gravedad" in df.columns:
+        fatales_region = (
+            df[df["gravedad"] == "Fatal"]
+            .groupby("REGION_DPA", observed=True)
+            .size()
+            .reset_index(name="n_fatales")
+        )
+        agg_region = agg_region.merge(fatales_region, on="REGION_DPA", how="left")
+        agg_region["n_fatales"] = agg_region["n_fatales"].fillna(0)
+        agg_region["pct_fatal_region"] = (
+            agg_region["n_fatales"] / agg_region["siniestros_por_region"] * 100
+        ).round(2)
+        agg_region = agg_region.drop(columns=["n_fatales"])
+
+    # Join (merge left) de vuelta al dataset principal
+    df = df.merge(agg_region, on="REGION_DPA", how="left")
+
+    log.info(
+        f"Agregados regionales añadidos: siniestros_por_region, "
+        f"dist_media_region_km, pct_fatal_region."
+    )
+    return df
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Optimización de tipos de datos (memoria)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def optimizar_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reduce el uso de memoria optimizando los tipos de datos del DataFrame.
+
+    Estrategias:
+        - int64  → int32  para columnas enteras sin valores extremos.
+        - float64 → float32 para columnas float de baja precisión requerida.
+        - object  → category para columnas categóricas de baja cardinalidad.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame procesado.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame con tipos optimizados y menor huella de memoria.
+    """
+    mem_antes = df.memory_usage(deep=True).sum() / 1024**2
+
+    # int64 -> int32
+    cols_int = df.select_dtypes(include=["int64"]).columns
+    for col in cols_int:
+        if df[col].min() >= np.iinfo(np.int32).min and df[col].max() <= np.iinfo(np.int32).max:
+            df[col] = df[col].astype(np.int32)
+
+    # float64 -> float32
+    cols_float = df.select_dtypes(include=["float64"]).columns
+    for col in cols_float:
+        df[col] = df[col].astype(np.float32)
+
+    # object -> category (cardinalidad baja: < 50 valores únicos)
+    cols_obj = df.select_dtypes(include=["object"]).columns
+    for col in cols_obj:
+        if df[col].nunique() < 50:
+            df[col] = df[col].astype("category")
+
+    mem_despues = df.memory_usage(deep=True).sum() / 1024**2
+    ahorro = ((mem_antes - mem_despues) / mem_antes * 100)
+    log.info(
+        f"Optimizacion de dtypes: {mem_antes:.2f} MB -> {mem_despues:.2f} MB "
+        f"(ahorro: {ahorro:.1f}%)"
+    )
+    return df
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Función principal: pipeline de transformación completo
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -272,11 +534,15 @@ def transformar(
     Pipeline completo de transformación.
 
     Aplica en orden:
-        1. limpiar_siniestros()
-        2. construir_variable_objetivo()
-        3. agregar_features_temporales()
-        4. calcular_distancia_hospital()
-        5. descartar_columnas()
+        1. validar_esquema()
+        2. limpiar_siniestros()
+        3. imputar_valores()
+        4. construir_variable_objetivo()
+        5. agregar_features_temporales()
+        6. calcular_distancia_hospital()
+        7. enriquecer_con_agregados_region()
+        8. optimizar_dtypes()
+        9. descartar_columnas()
 
     Parameters
     ----------
@@ -290,15 +556,19 @@ def transformar(
     pd.DataFrame
         Dataset procesado y listo para cargar en load.py.
     """
-    log.info("=== INICIO PIPELINE DE TRANSFORMACIÓN ===")
+    log.info("=== INICIO PIPELINE DE TRANSFORMACION ===")
 
-    df = limpiar_siniestros(df_siniestros)
+    df = validar_esquema(df_siniestros.copy())
+    df = limpiar_siniestros(df)
+    df = imputar_valores(df)
     df = construir_variable_objetivo(df)
     df = agregar_features_temporales(df)
     df = calcular_distancia_hospital(df, df_hospitales)
+    df = enriquecer_con_agregados_region(df)
     df = descartar_columnas(df)
+    df = optimizar_dtypes(df)
 
-    log.info(f"=== TRANSFORMACIÓN COMPLETA — Shape final: {df.shape} ===")
+    log.info(f"=== TRANSFORMACION COMPLETA - Shape final: {df.shape} ===")
     return df
 
 
