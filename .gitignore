@@ -4,4 +4,7 @@ venv/
 .env
 __pycache__/
 
-data/*.csv
+# Datos crudos (pesados, no van a git — descargar desde CONASET)
+data/Rural_2024.csv
+# Datos procesados SÍ se suben (reproducibilidad para el equipo)
+!data/processed/
