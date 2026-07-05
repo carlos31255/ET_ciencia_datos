@@ -8,3 +8,4 @@ __pycache__/
 data/Rural_2024.csv
 # Datos procesados SÍ se suben (reproducibilidad para el equipo)
 !data/processed/
+"models/modelo.pkl" 
