@@ -1,3 +1,41 @@
+# ── Entorno virtual ──────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── Variables de entorno ─────────────────────────────────────────
+.env
+.env.local
+
+# ── Python compilado ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# ── Jupyter ──────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Datos crudos (pesados, descargar desde CONASET) ──────────────
+data/Rural_2024.csv
+
+# ── Modelo entrenado (regenerar con models/train.py) ─────────────
+models/modelo.pkl
+models/X_test.csv
+models/y_test.csv
+
+# ── Sistema operativo ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDEs ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── Documentos PDF ───────────────────────────────────────────────
 *.pdf
 venv/
 .venv/
@@ -8,3 +46,4 @@ __pycache__/
 data/Rural_2024.csv
 # Datos procesados SÍ se suben (reproducibilidad para el equipo)
 !data/processed/
+"models/modelo.pkl" 
