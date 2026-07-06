@@ -22,6 +22,8 @@ data/Rural_2024.csv
 
 # ── Modelo entrenado (regenerar con models/train.py) ─────────────
 models/modelo.pkl
+models/X_test.csv
+models/y_test.csv
 
 # ── Sistema operativo ────────────────────────────────────────────
 .DS_Store
