@@ -7,6 +7,8 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
 
+SEED = 42
+
 # Definir rutas absolutas usando os
 directorio_actual = os.path.dirname(os.path.abspath(__file__)) 
 directorio_raiz = os.path.dirname(directorio_actual) 
@@ -39,12 +41,12 @@ preprocessor = ColumnTransformer(
 pipeline = Pipeline(steps=[
     ("preprocessor", preprocessor),
     # Random Forest maneja bien múltiples clases. class_weight="balanced" es obligatorio por el desbalance.
-    ("classifier", RandomForestClassifier(class_weight="balanced", random_state=42))
+    ("classifier", RandomForestClassifier(class_weight="balanced", random_state=SEED))
 ])
 
 # Dividir datos (Estratificando 'y' para mantener la proporción de la clase Fatal)
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
+    X, y, test_size=0.2, random_state=SEED, stratify=y
 )
 
 # Entrenar el modelo
