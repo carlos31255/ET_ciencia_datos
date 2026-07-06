@@ -1,22 +1,28 @@
+import os
 import pandas as pd
 import joblib
 from sklearn.metrics import classification_report, f1_score, roc_auc_score
 
-# 1. Cargar el modelo y los datos de prueba
-modelo = joblib.load("modelo.pkl")
-X_test = pd.read_csv("X_test.csv")
-y_test = pd.read_csv("y_test.csv").squeeze()
+directorio_actual = os.path.dirname(os.path.abspath(__file__))
 
-# 2. Generar predicciones y probabilidades
+ruta_modelo = os.path.join(directorio_actual, "modelo.pkl")
+ruta_X = os.path.join(directorio_actual, "X_test.csv")
+ruta_y = os.path.join(directorio_actual, "y_test.csv")
+
+print("Cargando modelo y datos de prueba...")
+modelo = joblib.load(ruta_modelo)
+X_test = pd.read_csv(ruta_X)
+y_test = pd.read_csv(ruta_y).squeeze()
+
+print("Generando predicciones...")
 y_pred = modelo.predict(X_test)
 y_pred_proba = modelo.predict_proba(X_test)
 
-# 3. Calcular métricas obligatorias
 f1_mac = f1_score(y_test, y_pred, average="macro")
 auc_roc = roc_auc_score(y_test, y_pred_proba, multi_class="ovr")
 
-# 4. Mostrar resultados
-print("="*40)
+# Mostrar resultados
+print("\n" + "="*40)
 print(" RESULTADOS DE EVALUACIÓN")
 print("="*40)
 print(f"F1-Macro:       {f1_mac:.4f}")

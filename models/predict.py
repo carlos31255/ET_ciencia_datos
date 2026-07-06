@@ -1,9 +1,13 @@
 import joblib
 import pandas as pd
+import os
 
 def probar_prediccion():
-    # Cargar el modelo real
-    modelo = joblib.load("modelo.pkl")
+    directorio_actual = os.path.dirname(os.path.abspath(__file__))
+    ruta_modelo = os.path.join(directorio_actual, "modelo.pkl")
+    
+    print(f"Cargando modelo desde: {ruta_modelo}")
+    modelo = joblib.load(ruta_modelo)
     
     datos_mock = {
         "mes": 3,
@@ -11,15 +15,14 @@ def probar_prediccion():
         "hora_aprox": 22,
         "es_fin_de_semana": 0,
         "franja_horaria": "Noche",
-        "region_dpa": "13",  
-        "comuna_dpa": "13101", 
+        "region_dpa": "13",
+        "comuna_dpa": "13101",
         "distancia_hospital_km": 4.2,
         "siniestros_por_region": 1823,
         "dist_media_region_km": 8.5,
         "pct_fatal_region": 4.8
     }
 
-    # El Pipeline de sklearn se encarga del OneHotEncoding y el Escalado automáticamente
     df_entrada = pd.DataFrame([datos_mock])
     
     clase = modelo.predict(df_entrada)[0]
