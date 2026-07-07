@@ -98,11 +98,9 @@ def construir_variable_objetivo(df: pd.DataFrame) -> pd.DataFrame:
     """
     Crea la columna 'gravedad' a partir de las columnas de víctimas.
 
-    Jerarquía de clasificación:
-        Fatal          → si Fallecidos > 0
-        Grave          → si Graves > 0 (y sin fallecidos)
-        Leve           → si Menos_Grav > 0 o Leves > 0
-        Sin lesionados → resto
+    Jerarquía de clasificación binaria:
+        Severo → si Fallecidos > 0 o Graves > 0
+        Leve   → resto (Menos_Grav, Leves, o sin lesionados)
 
     Parameters
     ----------
@@ -115,17 +113,13 @@ def construir_variable_objetivo(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame con columna 'gravedad' añadida.
     """
     def _clasificar(row):
-        if row["Fallecidos"] > 0:
-            return "Fatal"
-        elif row["Graves"] > 0:
-            return "Grave"
-        elif row["Menos_Grav"] > 0 or row["Leves"] > 0:
-            return "Leve"
-        return "Sin lesionados"
+        if row["Fallecidos"] > 0 or row["Graves"] > 0:
+            return "Severo"
+        return "Leve"
 
     df["gravedad"] = df.apply(_clasificar, axis=1)
     dist = df["gravedad"].value_counts()
-    log.info(f"Variable objetivo construida:\n{dist.to_string()}")
+    log.info(f"Variable objetivo (binaria) construida:\n{dist.to_string()}")
     return df
 
 
@@ -418,10 +412,7 @@ def enriquecer_con_agregados_region(df: pd.DataFrame) -> pd.DataFrame:
     Features añadidas:
         - siniestros_por_region:    N° total de siniestros en esa región.
         - dist_media_region_km:     Distancia media al hospital en esa región.
-        - pct_fatal_region:         % de siniestros fatales en esa región (riesgo histórico).
-
-    Estas features aportan contexto geográfico agregado que el modelo puede usar
-    para aprender patrones regionales sin exponerse a data leakage.
+        - pct_severo_region:        % de siniestros severos en esa región (riesgo histórico).
 
     Parameters
     ----------
@@ -446,27 +437,27 @@ def enriquecer_con_agregados_region(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
     )
 
-    # % de siniestros fatales por región
+    # % de siniestros severos por región
     if "gravedad" in df.columns:
-        fatales_region = (
-            df[df["gravedad"] == "Fatal"]
+        severos_region = (
+            df[df["gravedad"] == "Severo"]
             .groupby("REGION_DPA", observed=True)
             .size()
-            .reset_index(name="n_fatales")
+            .reset_index(name="n_severos")
         )
-        agg_region = agg_region.merge(fatales_region, on="REGION_DPA", how="left")
-        agg_region["n_fatales"] = agg_region["n_fatales"].fillna(0)
-        agg_region["pct_fatal_region"] = (
-            agg_region["n_fatales"] / agg_region["siniestros_por_region"] * 100
+        agg_region = agg_region.merge(severos_region, on="REGION_DPA", how="left")
+        agg_region["n_severos"] = agg_region["n_severos"].fillna(0)
+        agg_region["pct_severo_region"] = (
+            agg_region["n_severos"] / agg_region["siniestros_por_region"] * 100
         ).round(2)
-        agg_region = agg_region.drop(columns=["n_fatales"])
+        agg_region = agg_region.drop(columns=["n_severos"])
 
     # Join (merge left) de vuelta al dataset principal
     df = df.merge(agg_region, on="REGION_DPA", how="left")
 
     log.info(
         f"Agregados regionales añadidos: siniestros_por_region, "
-        f"dist_media_region_km, pct_fatal_region."
+        f"dist_media_region_km, pct_severo_region."
     )
     return df
 
