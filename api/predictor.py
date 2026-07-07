@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 USAR_MOCK = False
-MODEL_PATH = "models/modelo.pkl"
+MODEL_PATH = "models/saved_models/modelo.pkl"
 modelo = None
 
 def cargar_modelo():

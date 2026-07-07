@@ -5,14 +5,14 @@ from sklearn.metrics import classification_report, f1_score, roc_auc_score
 
 directorio_actual = os.path.dirname(os.path.abspath(__file__))
 
-ruta_modelo = os.path.join(directorio_actual, "modelo.pkl")
+ruta_modelo = os.path.join(directorio_actual, "saved_models", "modelo.pkl")
 ruta_X = os.path.join(directorio_actual, "X_test.csv")
 ruta_y = os.path.join(directorio_actual, "y_test.csv")
 
 print("Cargando modelo y datos de prueba...")
 modelo = joblib.load(ruta_modelo)
-X_test = pd.read_csv(ruta_X)
-y_test = pd.read_csv(ruta_y).squeeze()
+X_test = pd.read_csv(ruta_X, encoding='utf-8-sig')
+y_test = pd.read_csv(ruta_y, encoding='utf-8-sig').squeeze()
 
 print("Generando predicciones...")
 y_pred = modelo.predict(X_test)

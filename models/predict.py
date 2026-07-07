@@ -4,7 +4,7 @@ import os
 
 def probar_prediccion():
     directorio_actual = os.path.dirname(os.path.abspath(__file__))
-    ruta_modelo = os.path.join(directorio_actual, "modelo.pkl")
+    ruta_modelo = os.path.join(directorio_actual, "saved_models", "modelo.pkl")
     
     print(f"Cargando modelo desde: {ruta_modelo}")
     modelo = joblib.load(ruta_modelo)

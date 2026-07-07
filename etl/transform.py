@@ -564,7 +564,7 @@ def transformar(
     df = construir_variable_objetivo(df)
     df = agregar_features_temporales(df)
     df = calcular_distancia_hospital(df, df_hospitales)
-    df = enriquecer_con_agregados_region(df)
+
     df = descartar_columnas(df)
     df = optimizar_dtypes(df)
 

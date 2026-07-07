@@ -76,7 +76,7 @@ def cargar_siniestros(csv_path: Path = CSV_PATH) -> pd.DataFrame:
         )
 
     log.info(f"Cargando CSV desde: {csv_path}")
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, encoding='utf-8')
     log.info(f"CSV cargado: {len(df):,} filas x {df.shape[1]} columnas")
     return df
 
