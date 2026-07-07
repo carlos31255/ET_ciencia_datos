@@ -49,18 +49,12 @@ class RegionStatsEncoder(BaseEstimator, TransformerMixin):
         
     def transform(self, X):
         X_out = X.copy()
-        
-        # Inicializar columnas nuevas
-        X_out["siniestros_por_region"] = 0.0
-        X_out["dist_media_region_km"] = 0.0
-        X_out["pct_fatal_region"] = 0.0
-        
-        # Mapear valores
-        for idx, row in X_out.iterrows():
-            reg = row[self.region_col]
-            vals = self.stats_.get(reg, self.fallback_)
-            X_out.at[idx, "siniestros_por_region"] = vals["siniestros_por_region"]
-            X_out.at[idx, "dist_media_region_km"] = vals["dist_media_region_km"]
-            X_out.at[idx, "pct_fatal_region"] = vals["pct_fatal_region"]
-            
+
+        mapped = X_out[self.region_col].map(self.stats_)
+
+        for col in ["siniestros_por_region", "dist_media_region_km", "pct_fatal_region"]:
+            X_out[col] = mapped.apply(
+            lambda v: v[col] if isinstance(v, dict) else self.fallback_[col]
+        )
+
         return X_out
