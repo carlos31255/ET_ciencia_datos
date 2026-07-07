@@ -25,8 +25,7 @@ models/modelo.pkl
 models/X_test.csv
 models/y_test.csv
 
-# ── Base de datos SQLite (regenerar con python -m etl.load) ──────
-data/processed/siniestros.db
+# ── Base de datos SQLite (se incluye para evaluacion) ──────
 
 # ── Sistema operativo ────────────────────────────────────────────
 .DS_Store
