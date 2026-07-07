@@ -115,13 +115,9 @@ def construir_variable_objetivo(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame con columna 'gravedad' añadida.
     """
     def _clasificar(row):
-        if row["Fallecidos"] > 0:
-            return "Fatal"
-        elif row["Graves"] > 0:
-            return "Grave"
-        elif row["Menos_Grav"] > 0 or row["Leves"] > 0:
-            return "Leve"
-        return "Sin lesionados"
+        if row["Fallecidos"] > 0 or row["Graves"] > 0:
+            return "Severo"
+        return "Leve"
 
     df["gravedad"] = df.apply(_clasificar, axis=1)
     dist = df["gravedad"].value_counts()

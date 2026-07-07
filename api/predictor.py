@@ -28,10 +28,8 @@ def hacer_prediccion(datos: dict) -> dict:
         return {
             "gravedad": "Leve",
             "probabilidades": {
-                "Fatal": 0.03,
-                "Grave": 0.12,
-                "Leve": 0.71,
-                "Sin lesionados": 0.14
+                "Severo": 0.15,
+                "Leve": 0.85
             }
         }
 

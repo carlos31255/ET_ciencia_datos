@@ -13,7 +13,7 @@ class SiniestroInput(BaseModel):
     distancia_hospital_km: float = Field(..., gt=0, description="Distancia al hospital en km (>0)")
     siniestros_por_region: int
     dist_media_region_km: float
-    pct_fatal_region: float
+    pct_severo_region: float
 
 class SiniestroOutput(BaseModel):
     gravedad: str

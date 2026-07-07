@@ -20,7 +20,7 @@ def probar_prediccion():
         "distancia_hospital_km": 4.2,
         "siniestros_por_region": 1823,
         "dist_media_region_km": 8.5,
-        "pct_fatal_region": 4.8
+        "pct_severo_region": 4.8
     }
 
     df_entrada = pd.DataFrame([datos_mock])

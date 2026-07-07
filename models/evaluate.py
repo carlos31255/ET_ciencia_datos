@@ -3,7 +3,11 @@ import pandas as pd
 import joblib
 from sklearn.metrics import classification_report, f1_score, roc_auc_score
 
-directorio_actual = os.path.dirname(os.path.abspath(__file__))
+import sys
+directorio_actual = os.path.dirname(os.path.abspath(__file__)) 
+directorio_raiz = os.path.dirname(directorio_actual) 
+sys.path.insert(0, directorio_raiz)
+from models.transformers import RegionStatsEncoder
 
 ruta_modelo = os.path.join(directorio_actual, "saved_models", "modelo.pkl")
 ruta_X = os.path.join(directorio_actual, "X_test.csv")
@@ -19,7 +23,7 @@ y_pred = modelo.predict(X_test)
 y_pred_proba = modelo.predict_proba(X_test)
 
 f1_mac = f1_score(y_test, y_pred, average="macro")
-auc_roc = roc_auc_score(y_test, y_pred_proba, multi_class="ovr")
+auc_roc = roc_auc_score(y_test, y_pred_proba[:, 1])
 
 # Mostrar resultados
 print("\n" + "="*40)

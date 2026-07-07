@@ -63,7 +63,7 @@ distancia_hospital_km = st.sidebar.number_input("Distancia al hospital (km)", mi
 st.sidebar.markdown("*Estadisticas Regionales (Valores Historicos)*")
 siniestros_por_region = st.sidebar.number_input("Total Siniestros (Historico)", min_value=0, value=1500)
 dist_media_region_km = st.sidebar.number_input("Dist. Media Hospital Region", min_value=0.0, value=10.0)
-pct_fatal_region = st.sidebar.number_input("% Fatalidad Region", min_value=0.0, max_value=100.0, value=4.5)
+pct_severo_region = st.sidebar.number_input("% Fatalidad Region", min_value=0.0, max_value=100.0, value=4.5)
 
 # Boton de prediccion
 if st.sidebar.button("Predecir Gravedad 🚀", use_container_width=True):
@@ -80,7 +80,7 @@ if st.sidebar.button("Predecir Gravedad 🚀", use_container_width=True):
         "distancia_hospital_km": distancia_hospital_km,
         "siniestros_por_region": siniestros_por_region,
         "dist_media_region_km": dist_media_region_km,
-        "pct_fatal_region": pct_fatal_region
+        "pct_severo_region": pct_severo_region
     }
 
     with st.spinner("Consultando modelo de Machine Learning..."):

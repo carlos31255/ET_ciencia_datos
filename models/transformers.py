@@ -30,12 +30,12 @@ class RegionStatsEncoder(BaseEstimator, TransformerMixin):
         
         # Agrupación condicional (solo si hay Y)
         if y is not None:
-            fatales = df['target_gravedad'] == 'Fatal'
+            fatales = df['target_gravedad'] == 'Severo'
             # Evitar error si no hay fatales
             pct = df[fatales].groupby(self.region_col, observed=True).size() / df.groupby(self.region_col, observed=True).size()
-            agg['pct_fatal_region'] = pct.fillna(0.0) * 100.0
+            agg['pct_severo_region'] = pct.fillna(0.0) * 100.0
         else:
-            agg['pct_fatal_region'] = 0.0
+            agg['pct_severo_region'] = 0.0
             
         self.stats_ = agg.to_dict('index')
         
@@ -43,7 +43,7 @@ class RegionStatsEncoder(BaseEstimator, TransformerMixin):
         self.fallback_ = {
             "siniestros_por_region": agg["siniestros_por_region"].median(),
             "dist_media_region_km": agg["dist_media_region_km"].median(),
-            "pct_fatal_region": agg["pct_fatal_region"].median() if 'pct_fatal_region' in agg else 0.0
+            "pct_severo_region": agg["pct_severo_region"].median() if 'pct_severo_region' in agg else 0.0
         }
         return self
         
@@ -52,7 +52,7 @@ class RegionStatsEncoder(BaseEstimator, TransformerMixin):
 
         mapped = X_out[self.region_col].map(self.stats_)
 
-        for col in ["siniestros_por_region", "dist_media_region_km", "pct_fatal_region"]:
+        for col in ["siniestros_por_region", "dist_media_region_km", "pct_severo_region"]:
             X_out[col] = mapped.apply(
             lambda v: v[col] if isinstance(v, dict) else self.fallback_[col]
         )
