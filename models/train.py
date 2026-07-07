@@ -1,4 +1,5 @@
 import os
+import json
 import pandas as pd
 import joblib
 from sklearn.model_selection import train_test_split
@@ -41,12 +42,23 @@ preprocessor = ColumnTransformer(
     ]
 )
 
+# Intentar cargar mejores hiperparámetros desde Optuna
+ruta_params = os.path.join(directorio_actual, "best_params.json")
+rf_params = {"class_weight": "balanced", "random_state": SEED, "n_jobs": -1}
+
+if os.path.exists(ruta_params):
+    with open(ruta_params, "r", encoding="utf-8") as f:
+        best_params = json.load(f)
+    print(f"Cargando hiperparámetros optimizados: {best_params}")
+    rf_params.update(best_params)
+else:
+    print("No se encontraron hiperparámetros optimizados, usando por defecto.")
+
 # Crear el Pipeline
 pipeline = Pipeline(steps=[
     ("region_stats", RegionStatsEncoder(region_col="region_dpa")),
     ("preprocessor", preprocessor),
-    # Random Forest maneja bien múltiples clases. class_weight="balanced" es obligatorio por el desbalance.
-    ("classifier", RandomForestClassifier(class_weight="balanced", random_state=SEED))
+    ("classifier", RandomForestClassifier(**rf_params))
 ])
 
 # Dividir datos (Estratificando 'y' para mantener la proporción de la clase Fatal)
