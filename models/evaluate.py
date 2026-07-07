@@ -14,12 +14,18 @@ modelo = joblib.load(ruta_modelo)
 X_test = pd.read_csv(ruta_X)
 y_test = pd.read_csv(ruta_y).squeeze()
 
+# Generar predicciones y probabilidades
 print("Generando predicciones...")
 y_pred = modelo.predict(X_test)
-y_pred_proba = modelo.predict_proba(X_test)
 
+# Identificamos dinámicamente en qué columna quedó la clase "Severo"
+indice_severo = list(modelo.classes_).index("Severo")
+# Extraemos solo la probabilidad de ser Severo
+y_pred_proba = modelo.predict_proba(X_test)[:, indice_severo]
+
+# 4. Calcular métricas (Ajustado para binario)
 f1_mac = f1_score(y_test, y_pred, average="macro")
-auc_roc = roc_auc_score(y_test, y_pred_proba, multi_class="ovr")
+auc_roc = roc_auc_score(y_test, y_pred_proba)
 
 # Mostrar resultados
 print("\n" + "="*40)

@@ -27,7 +27,7 @@ y = df["gravedad"]
 cat_cols = ["franja_horaria", "region_dpa", "comuna_dpa"]
 num_cols = ["mes", "diasemana", "hora_aprox", "es_fin_de_semana",
             "distancia_hospital_km", "siniestros_por_region",
-            "dist_media_region_km", "pct_fatal_region"]
+            "dist_media_region_km", "pct_severo_region"]
 
 # Crear el preprocesador
 preprocessor = ColumnTransformer(
