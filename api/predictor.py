@@ -2,12 +2,24 @@ import joblib
 import pandas as pd
 import os
 
+import json
+
 USAR_MOCK = False
 MODEL_PATH = "models/saved_models/modelo.pkl"
+THRESH_PATH = "models/best_threshold.json"
 modelo = None
+umbral_optimo = 0.5
 
 def cargar_modelo():
-    global modelo
+    global modelo, umbral_optimo
+    # Cargar umbral si existe
+    if os.path.exists(THRESH_PATH):
+        try:
+            with open(THRESH_PATH, "r", encoding="utf-8") as f:
+                umbral_optimo = json.load(f).get("umbral_severo", 0.5)
+        except Exception as e:
+            print(f"Error cargando umbral: {e}")
+            
     if os.path.exists(MODEL_PATH):
         try:
             modelo = joblib.load(MODEL_PATH)
@@ -50,9 +62,12 @@ def hacer_prediccion(datos: dict) -> dict:
     clases = modelo.classes_
 
     probs_dict = {str(clase): round(float(prob), 4) for clase, prob in zip(clases, probabilidades)}
-    clase_ganadora = modelo.predict(df)[0]
+    
+    # Aplicar el umbral óptimo para decidir si es Severo
+    prob_severo = probs_dict.get("Severo", 0.0)
+    clase_ganadora = "Severo" if prob_severo >= umbral_optimo else "Leve"
 
     return {
-        "gravedad": str(clase_ganadora),
+        "gravedad": clase_ganadora,
         "probabilidades": probs_dict
     }
