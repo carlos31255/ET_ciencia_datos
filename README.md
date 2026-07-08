@@ -14,7 +14,7 @@ El pipeline de extracción, transformación y carga (ETL) integra **tres fuentes
 | Fuente | Tipo | Aporte al Proyecto |
 | :--- | :--- | :--- |
 | **Coordinador Eléctrico Nacional (SIP)** | `API REST` | Costo marginal por barra eléctrica, obtenido mediante peticiones paginadas a la API oficial. |
-| **Banco Central de Chile** | `CSV / Excel` | Producto Interno Bruto (PIB) regional, utilizado para darle contexto socioeconómico y normalizar el "estrés energético". |
+| **Banco Central de Chile** | `CSV / Excel` | Producto Interno Bruto (PIB). Se extraen dos archivos: uno con el PIB de las 16 regiones para dar contexto socioeconómico, y otro con 3 series macro (Subtotal regionalizado, Extrarregional y PIB Nacional) para validación de integridad. |
 | **Base de Datos Relacional** | `SQLite / SQL` | Almacenamiento histórico y normalizado (tablas de costos, regiones, y dimensión de barras). Permite la ejecución de *joins* complejos para cruzar la geografía con los costos eléctricos. |
 
 ## ⚙️ Estructura del Proyecto
@@ -23,7 +23,7 @@ El proyecto está diseñado bajo una arquitectura modular y escalable, cumpliend
 
 - `/etl/`: Scripts (`extract.py`, `transform.py`, `load.py`, `pipeline.py`) y notebooks Jupyter (`01_etl_experimentacion.ipynb`) para la ingesta y procesamiento de datos.
 - `/models/`: Scripts y notebooks para el entrenamiento, evaluación y serialización del modelo de Machine Learning (K-Means).
-- `/api/`: Código fuente de la API REST para exponer las predicciones o datos del modelo.
+- `/api/`: Código fuente del **Microservicio Interno** (ej. FastAPI). Este servidor carga el modelo entrenado y expone un endpoint REST (ej. por el puerto 8000 mediante Port Forward) para que el dashboard consulte las predicciones, manteniendo una arquitectura desacoplada.
 - `/dashboards/`: Aplicación interactiva (ej. Streamlit o Dash) para la visualización del Panel de Riesgo Energético.
 - `/docker/`: Archivos y configuraciones (`Dockerfile`, `docker-compose.yml`) para la contenerización del proyecto.
 - `/docs/`: Documentación técnica, manuales y contexto del negocio.
