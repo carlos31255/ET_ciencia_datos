@@ -31,10 +31,35 @@ El proyecto está diseñado bajo una arquitectura modular y escalable, cumpliend
 - `/data/`: Almacenamiento local dividido en `raw/` (datos originales) y `processed/` (datos limpios y base de datos SQL).
 - `README.md`, archivos de configuración (ej. `.env`, `.gitignore`) y scripts de automatización en la raíz del proyecto.
 
-## 🚀 Ejecución del ETL
+## 🚀 Configuración y Ejecución
 
-Para ejecutar el pipeline de datos completo, asegúrate de tener instaladas las dependencias y configurar tu `.env` con el token de la API del Coordinador (`COORDINADOR_API_TOKEN`). Luego, ejecuta:
+### 1. Entorno Virtual
+Para ejecutar este proyecto, es estrictamente necesario crear un entorno virtual para aislar las dependencias:
+
+**En Windows (VS Code):**
+```bash
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+**En Mac/Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 2. Ejecución del Pipeline (ETL)
+Asegúrate de configurar tu archivo `.env` con el token de la API del Coordinador (`COORDINADOR_API_TOKEN`). Luego, para extraer datos reales y poblar tu base de datos SQLite, ejecuta:
 
 ```bash
-python etl/pipeline.py
+python etl/pipeline.py --api-fecha-inicio "2026-04-01" --api-fecha-fin "2026-04-04" --api-max-paginas 50
 ```
+
+### 3. Levantar la API (Microservicio)
+Para encender el servidor de Machine Learning (FastAPI) y que quede escuchando peticiones:
+```bash
+uvicorn api.main:app --reload
+```
+Una vez corriendo, puedes acceder a la interfaz de prueba en `http://127.0.0.1:8000/docs`.
