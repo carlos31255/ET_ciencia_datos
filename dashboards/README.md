@@ -1,8 +1,6 @@
 # Dashboard de Energía (Frontend)
 
-¡Hola! Si estás leyendo esto, significa que el backend del proyecto (ETL, Modelos de Machine Learning y la API) ya está 100% completado y funcionado. 
-
-Tu misión en esta rama (`feature/dashboard`) es construir la interfaz visual interactiva para el usuario final utilizando **Streamlit**.
+Construir la interfaz visual interactiva para el usuario final utilizando **Streamlit**.
 
 ## ¿Qué tienes disponible?
 
@@ -47,5 +45,4 @@ print("Costo predicho USD:", prediccion["costo_marginal_predicho_usd"])
 2. Importa `streamlit` y `plotly`.
 3. Arma un par de gráficos que muestren el costo histórico (leyendo de `energia.db`).
 4. Haz un formulario en la barra lateral (`st.sidebar`) donde el usuario meta los 6 datos requeridos, envíalos a la API, y muestra la predicción en pantalla gigante.
-
-¡Mucho éxito, la nota máxima ya es nuestra!
+5. Revisa cualquier tipo de error que pueda aparecer, y si la base de datos tiene persistencia en caso de que la api no funcione.
