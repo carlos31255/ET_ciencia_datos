@@ -79,6 +79,11 @@ def extraer_costos_marginales_raw(fecha_inicio: str, fecha_fin: str, token: str,
 
         total_paginas = payload.get("totalPages", 1)
         pagina += 1
+        
+        # Log para mostrar el progreso en vivo
+        if pagina % 5 == 0 or pagina == total_paginas:
+            logger.info(f"Descargando página {pagina} de {total_paginas}...")
+            
         if pagina >= total_paginas or (max_paginas is not None and pagina >= max_paginas):
             break
         time.sleep(pausa)
