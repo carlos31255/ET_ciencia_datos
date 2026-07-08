@@ -55,6 +55,7 @@ Asegúrate de configurar tu archivo `.env` con el token de la API del Coordinado
 
 ```bash
 python etl/pipeline.py --api-fecha-inicio "2026-04-01" --api-fecha-fin "2026-04-04" --api-max-paginas 50
+# (Tarda un montón en ejecutarse, se recomienda dejar corriendo solo el ETL)
 ```
 
 ### 3. Levantar la API (Microservicio)
