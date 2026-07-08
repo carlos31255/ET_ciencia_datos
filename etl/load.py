@@ -1,211 +1,54 @@
-# -*- coding: utf-8 -*-
-"""
-etl/load.py
------------
-Modulo de carga (L del ETL).
-Responsabilidades:
-  1. Guardar el dataset procesado como CSV en data/processed/.
-  2. Guardar el DataFrame de hospitales como CSV en data/processed/ (cache).
-  3. Guardar el dataset procesado en SQLite (almacenamiento intermedio).
-"""
-
 import logging
-import sqlite3
-from pathlib import Path
-
 import pandas as pd
+from sqlalchemy import text
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger("etl_energia")
 
-# -- Rutas de salida -----------------------------------------------------------
-ROOT = Path(__file__).resolve().parent.parent
-PROCESSED_DIR = ROOT / "data" / "processed"
-DB_PATH = PROCESSED_DIR / "siniestros.db"
+DDL_REGIONES = """
+CREATE TABLE IF NOT EXISTS pib_regional (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    periodo DATE NOT NULL,
+    anio INTEGER NOT NULL,
+    trimestre INTEGER NOT NULL,
+    region TEXT NOT NULL,
+    pib_millones_clp REAL NOT NULL
+);
+"""
 
+DDL_COSTOS = """
+CREATE TABLE IF NOT EXISTS costos_marginales (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha DATETIME NOT NULL,
+    barra_codigo TEXT NOT NULL,
+    barra_nombre TEXT,
+    costo_marginal_usd_mwh REAL NOT NULL,
+    version TEXT
+);
+"""
 
-def _asegurar_directorio(path: Path) -> None:
-    """Crea el directorio si no existe."""
-    path.mkdir(parents=True, exist_ok=True)
-
-
-# ------------------------------------------------------------------------------
-# 1. Guardar dataset procesado (CSV)
-# ------------------------------------------------------------------------------
-
-def guardar_dataset_procesado(
-    df: pd.DataFrame,
-    nombre: str = "datos_limpios.csv"
-) -> Path:
-    """
-    Guarda el dataset transformado en data/processed/ como CSV.
-
-    Este archivo es la entrada para la etapa de modelado (models/).
-    El equipo puede consumirlo directamente sin re-ejecutar el ETL.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Dataset procesado (salida de transform.transformar()).
-    nombre : str
-        Nombre del archivo CSV de salida.
-
-    Returns
-    -------
-    Path
-        Ruta absoluta del archivo guardado.
-    """
-    _asegurar_directorio(PROCESSED_DIR)
-    ruta = PROCESSED_DIR / nombre
-    df.to_csv(ruta, index=False, encoding="utf-8-sig")
-    log.info(
-        f"Dataset procesado guardado en: {ruta}  ({len(df):,} filas, "
-        f"{df.shape[1]} columnas)"
-    )
-    return ruta
+DDL_DIM_BARRAS = """
+CREATE TABLE IF NOT EXISTS dim_barras (
+    barra_codigo TEXT PRIMARY KEY,
+    barra_nombre TEXT,
+    region TEXT
+);
+"""
 
 
-# ------------------------------------------------------------------------------
-# 2. Cache de hospitales (CSV)
-# ------------------------------------------------------------------------------
-
-def guardar_hospitales(
-    df_hospitales: pd.DataFrame,
-    nombre: str = "hospitales_chile.csv"
-) -> Path:
-    """
-    Guarda el DataFrame de hospitales como CSV de cache.
-
-    Permite reutilizar los datos de la API Overpass en ejecuciones futuras,
-    reduciendo el tiempo de ~50s a menos de 1s.
-
-    Parameters
-    ----------
-    df_hospitales : pd.DataFrame
-        DataFrame de hospitales (salida de extract.obtener_hospitales()).
-    nombre : str
-        Nombre del archivo CSV de salida.
-
-    Returns
-    -------
-    Path
-        Ruta absoluta del archivo guardado.
-    """
-    _asegurar_directorio(PROCESSED_DIR)
-    ruta = PROCESSED_DIR / nombre
-    df_hospitales.to_csv(ruta, index=False, encoding="utf-8-sig")
-    log.info(f"Cache de hospitales guardada: {ruta}  ({len(df_hospitales):,} registros)")
-    return ruta
+def crear_esquema(engine) -> None:
+    """Crea (si no existen) las tablas del esquema relacional."""
+    with engine.begin() as conn:
+        conn.execute(text(DDL_REGIONES))
+        conn.execute(text(DDL_COSTOS))
+        conn.execute(text(DDL_DIM_BARRAS))
+    logger.info("Esquema creado/verificado en la base de datos.")
 
 
-def cargar_hospitales_cache(
-    nombre: str = "hospitales_chile.csv"
-) -> "pd.DataFrame | None":
-    """
-    Intenta cargar el cache de hospitales desde disco.
-
-    Returns
-    -------
-    pd.DataFrame | None
-        DataFrame de hospitales si existe el cache, None si no existe.
-    """
-    ruta = PROCESSED_DIR / nombre
-    if ruta.exists():
-        df = pd.read_csv(ruta)
-        log.info(f"Hospitales cargados desde cache: {ruta}  ({len(df):,} registros)")
-        return df
-    log.info("No se encontro cache de hospitales -- se consultara la API.")
-    return None
-
-
-# ------------------------------------------------------------------------------
-# 3. Guardar en base de datos SQLite
-# ------------------------------------------------------------------------------
-
-def guardar_en_sqlite(
-    df: pd.DataFrame,
-    tabla: str = "siniestros",
-    db_path: Path = None,
-) -> Path:
-    """
-    Guarda el dataset procesado en una base de datos SQLite.
-
-    SQLite actua como almacenamiento intermedio estructurado entre el ETL
-    y la etapa de modelado, siguiendo la arquitectura definida en el proyecto:
-        CSV (CONASET) + API Overpass -> ETL -> SQLite -> Modelo ML.
-
-    El archivo .db no se sube al repo (ver .gitignore) y se regenera
-    ejecutando este modulo desde la raiz del proyecto:
-        python -m etl.load
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Dataset procesado (salida de transform.transformar()).
-    tabla : str
-        Nombre de la tabla SQL. Por defecto 'siniestros'.
-    db_path : Path or None
-        Ruta al archivo .db. Por defecto data/processed/siniestros.db.
-
-    Returns
-    -------
-    Path
-        Ruta absoluta del archivo .db generado.
-    """
-    if db_path is None:
-        db_path = DB_PATH
-
-    _asegurar_directorio(Path(db_path).parent)
-    conn = sqlite3.connect(db_path)
-    df.to_sql(tabla, conn, if_exists="replace", index=False)
-    conn.close()
-    log.info(
-        f"SQLite actualizado: {db_path} "
-        f"-- tabla '{tabla}' ({len(df):,} filas)"
-    )
-    return Path(db_path)
-
-
-# ------------------------------------------------------------------------------
-# Ejecucion directa: pipeline E -> T -> L completo
-# ------------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    import sys
-    sys.path.insert(0, str(ROOT))
-
-    from etl.extract import cargar_siniestros, obtener_hospitales
-    from etl.transform import transformar
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    log.info("=== INICIO PIPELINE ETL COMPLETO ===")
-
-    # Extract
-    df_siniestros = cargar_siniestros()
-
-    # Intentar cargar hospitales desde cache (evita llamar la API si ya existe)
-    df_hospitales = cargar_hospitales_cache()
-    if df_hospitales is None:
-        df_hospitales = obtener_hospitales()
-        guardar_hospitales(df_hospitales)
-
-    # Transform
-    df_procesado = transformar(df_siniestros, df_hospitales)
-
-    # Load (CSV + SQLite)
-    ruta_csv = guardar_dataset_procesado(df_procesado)
-    ruta_db  = guardar_en_sqlite(df_procesado)
-
-    log.info("=== PIPELINE ETL COMPLETO ===")
-    log.info(f"CSV listo para modelado: {ruta_csv}")
-    log.info(f"Base de datos SQLite:    {ruta_db}")
-
-    print(f"\n[OK] ETL completado.")
-    print(f"   CSV:    {ruta_csv}")
-    print(f"   SQLite: {ruta_db}")
-    print(f"   Shape:  {df_procesado.shape}")
-    print(f"\nColumnas: {list(df_procesado.columns)}")
+def cargar_a_sql(df: pd.DataFrame, tabla: str, engine, si_existe: str = "replace") -> None:
+    """Carga un dataframe a SQL con manejo de errores."""
+    try:
+        df.to_sql(tabla, con=engine, if_exists=si_existe, index=False)
+        logger.info(f"Cargadas {len(df)} filas en tabla '{tabla}'.")
+    except Exception as e:
+        logger.error(f"Error al cargar tabla '{tabla}': {e}")
+        raise

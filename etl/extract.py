@@ -1,241 +1,118 @@
-# -*- coding: utf-8 -*-
-"""
-etl/extract.py
-──────────────
-Módulo de extracción (E del ETL).
-Responsabilidades:
-  1. Cargar el dataset de siniestros desde el CSV local.
-  2. Consultar la API Overpass (OpenStreetMap) para obtener
-     la ubicación de hospitales y centros de salud en Chile.
-  3. Devolver ambos como DataFrames limpios para la etapa de transformación.
-"""
-
 import logging
 import time
-from pathlib import Path
-
+import numpy as np
 import pandas as pd
 import requests
+from pathlib import Path
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
-# ── Configuración de logging ─────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-log = logging.getLogger(__name__)
+logger = logging.getLogger("etl_energia")
 
-# ── Rutas ────────────────────────────────────────────────────────────────────
-ROOT = Path(__file__).resolve().parent.parent   # raíz del proyecto
-CSV_PATH = ROOT / "data" / "Rural_2024.csv"
-
-# ── Configuración de la API Overpass ─────────────────────────────────────────
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-HEADERS = {
-    "User-Agent": "EFT-SCY1101-ProyectoUniversitario/1.0 (contacto: tu_correo@duoc.cl)"
-}
-
-# Bounding box de Chile continental (sur a norte, oeste a este)
-# Formato Overpass: [south, west, north, east]
-CHILE_BBOX = (-56.0, -76.0, -17.0, -66.0)
-
-# Tiempo máximo de espera para la API (segundos)
-API_TIMEOUT = 60
-# Reintentos en caso de fallo temporal
-MAX_RETRIES = 3
-RETRY_DELAY = 5   # segundos entre reintentos
+API_BASE_URL = "https://sipub.api.coordinador.cl"
+ENDPOINT_COSTO_MARGINAL = "/costo-marginal-real/v4/findByDate"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Extracción del CSV
-# ─────────────────────────────────────────────────────────────────────────────
-
-def cargar_siniestros(csv_path: Path = CSV_PATH) -> pd.DataFrame:
-    """
-    Carga el dataset de siniestros en rutas desde el CSV de CONASET.
-
-    Parameters
-    ----------
-    csv_path : Path
-        Ruta al archivo CSV (por defecto apunta a data/Rural_2024.csv).
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame con todos los registros del CSV sin modificaciones.
-
-    Raises
-    ------
-    FileNotFoundError
-        Si el archivo CSV no se encuentra en la ruta especificada.
-    """
-    if not csv_path.exists():
-        raise FileNotFoundError(
-            f"CSV no encontrado: {csv_path}\n"
-            "Asegúrate de que el archivo esté en la carpeta data/."
-        )
-
-    log.info(f"Cargando CSV desde: {csv_path}")
-    df = pd.read_csv(csv_path, encoding='utf-8')
-    log.info(f"CSV cargado: {len(df):,} filas x {df.shape[1]} columnas")
-    return df
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. Extracción de hospitales vía API Overpass
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _construir_query_hospitales(bbox: tuple) -> str:
-    """
-    Construye la query Overpass QL para obtener hospitales en el bbox dado.
-
-    Parameters
-    ----------
-    bbox : tuple
-        Tupla (south, west, north, east) con las coordenadas del bounding box.
-
-    Returns
-    -------
-    str
-        Query Overpass QL lista para enviar.
-    """
-    s, w, n, e = bbox
-    return f"""
-[out:json][timeout:{API_TIMEOUT}];
-(
-  node["amenity"="hospital"]({s},{w},{n},{e});
-  node["healthcare"="hospital"]({s},{w},{n},{e});
-  way["amenity"="hospital"]({s},{w},{n},{e});
-  way["healthcare"="hospital"]({s},{w},{n},{e});
-);
-out center;
-"""
-
-
-def _parsear_elementos(elementos: list) -> pd.DataFrame:
-    """
-    Convierte la lista de elementos Overpass a un DataFrame estructurado.
-
-    Parameters
-    ----------
-    elementos : list
-        Lista de dicts devuelta por la API Overpass.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame con columnas: osm_id, tipo, nombre, lat, lon.
-    """
-    registros = []
-    for elem in elementos:
-        tags = elem.get("tags", {})
-        # Para 'way', las coords vienen en 'center'
-        if elem["type"] == "way":
-            centro = elem.get("center", {})
-            lat = centro.get("lat")
-            lon = centro.get("lon")
-        else:
-            lat = elem.get("lat")
-            lon = elem.get("lon")
-
-        registros.append({
-            "osm_id": elem.get("id"),
-            "osm_type": elem.get("type"),
-            "nombre": tags.get("name", "Sin nombre"),
-            "amenity": tags.get("amenity", ""),
-            "healthcare": tags.get("healthcare", ""),
-            "lat": lat,
-            "lon": lon,
-        })
-
-    return pd.DataFrame(registros)
-
-
-def obtener_hospitales(bbox: tuple = CHILE_BBOX) -> pd.DataFrame:
-    """
-    Consulta la API Overpass para obtener hospitales y centros de salud en Chile.
-
-    Implementa reintentos automáticos con espera entre intentos para
-    manejar fallos temporales de la API.
-
-    Parameters
-    ----------
-    bbox : tuple
-        Bounding box (south, west, north, east). Por defecto: Chile continental.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame con columnas: osm_id, osm_type, nombre, amenity, healthcare, lat, lon.
-
-    Raises
-    ------
-    RuntimeError
-        Si la API falla tras todos los reintentos configurados.
-    """
-    query = _construir_query_hospitales(bbox)
-    log.info("Consultando API Overpass para hospitales en Chile...")
-
-    for intento in range(1, MAX_RETRIES + 1):
-        try:
-            inicio = time.time()
-            resp = requests.get(
-                OVERPASS_URL,
-                params={"data": query},
-                headers=HEADERS,
-                timeout=API_TIMEOUT,
-            )
-            elapsed = round(time.time() - inicio, 2)
-
-            if resp.status_code == 200:
-                elementos = resp.json().get("elements", [])
-                log.info(
-                    f"API respondió en {elapsed}s — "
-                    f"{len(elementos)} hospitales/centros encontrados."
-                )
-                df = _parsear_elementos(elementos)
-                # Eliminar registros sin coordenadas
-                df = df.dropna(subset=["lat", "lon"]).reset_index(drop=True)
-                log.info(f"Hospitales con coordenadas válidas: {len(df)}")
-                return df
-
-            elif resp.status_code == 429:
-                log.warning(f"Rate limit (429). Esperando {RETRY_DELAY}s antes de reintentar...")
-                time.sleep(RETRY_DELAY)
-
-            else:
-                log.warning(
-                    f"Intento {intento}/{MAX_RETRIES} — "
-                    f"Status {resp.status_code}. Reintentando en {RETRY_DELAY}s..."
-                )
-                time.sleep(RETRY_DELAY)
-
-        except requests.exceptions.Timeout:
-            log.warning(f"Intento {intento}/{MAX_RETRIES} — Timeout. Reintentando...")
-            time.sleep(RETRY_DELAY)
-
-        except requests.exceptions.ConnectionError as e:
-            log.error(f"Error de conexión: {e}")
-            time.sleep(RETRY_DELAY)
-
-    raise RuntimeError(
-        f"API Overpass no respondió tras {MAX_RETRIES} intentos. "
-        "Verifica tu conexión o intenta más tarde."
+def crear_sesion_http(reintentos: int = 3, backoff: float = 1.5) -> requests.Session:
+    sesion = requests.Session()
+    estrategia = Retry(
+        total=reintentos,
+        backoff_factor=backoff,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"],
     )
+    adaptador = HTTPAdapter(max_retries=estrategia)
+    sesion.mount("https://", adaptador)
+    return sesion
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Ejecución directa (modo prueba rápida)
-# ─────────────────────────────────────────────────────────────────────────────
+def leer_excel_pib_crudo(ruta_excel: Path, header_row: int = 2) -> pd.DataFrame:
+    """Extrae la pestaña 'Cuadro' del Excel del BCentral sin hacer transformaciones."""
+    if not ruta_excel.exists():
+        raise FileNotFoundError(f"No se encontró el archivo Excel: {ruta_excel}")
+    return pd.read_excel(ruta_excel, sheet_name="Cuadro", header=header_row)
 
-if __name__ == "__main__":
-    # Prueba 1: Cargar CSV
-    df_siniestros = cargar_siniestros()
-    print("\n--- Siniestros (primeras filas) ---")
-    print(df_siniestros.head(3))
 
-    # Prueba 2: Obtener hospitales
-    df_hospitales = obtener_hospitales()
-    print("\n--- Hospitales extraídos (primeros 5) ---")
-    print(df_hospitales.head())
-    print(f"\nTotal hospitales: {len(df_hospitales)}")
+def _limpiar_pagina_costos_marginales(registros):
+    df = pd.DataFrame(registros)
+    if df.empty:
+        return df
+    df["barra_info"] = df["barra_info"].replace("nan", np.nan)
+    df["fecha_hora"] = pd.to_datetime(df["fecha_hora"], errors="coerce")
+    columnas = ["fecha_hora", "barra_transf", "barra_info", "cmg_usd_mwh_", "version"]
+    return df[columnas].rename(columns={
+        "fecha_hora": "fecha",
+        "barra_transf": "barra_codigo",
+        "barra_info": "barra_nombre",
+        "cmg_usd_mwh_": "costo_marginal_usd_mwh",
+    })
+
+
+def extraer_costos_marginales_raw(fecha_inicio: str, fecha_fin: str, token: str, limit: int = 1000,
+                                   max_paginas: int | None = None, pausa: float = 0.2) -> pd.DataFrame:
+    """Extrae los costos paginando desde la API. Retorna el df concatenado con posibles duplicados."""
+    sesion = crear_sesion_http()
+    paginas_df = []
+    pagina = 0
+
+    while True:
+        params = {
+            "startDate": fecha_inicio,
+            "endDate": fecha_fin,
+            "page": pagina,
+            "limit": limit,
+            "user_key": token,
+        }
+        try:
+            resp = sesion.get(f"{API_BASE_URL}{ENDPOINT_COSTO_MARGINAL}", params=params, timeout=30)
+            resp.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Fallo al consultar la API del Coordinador en página {pagina}: {e}")
+            raise
+
+        payload = resp.json()
+        registros = payload.get("data", [])
+        if not registros:
+            break
+
+        paginas_df.append(_limpiar_pagina_costos_marginales(registros))
+
+        total_paginas = payload.get("totalPages", 1)
+        pagina += 1
+        if pagina >= total_paginas or (max_paginas is not None and pagina >= max_paginas):
+            break
+        time.sleep(pausa)
+
+    if not paginas_df:
+        return pd.DataFrame(columns=["fecha", "barra_codigo", "barra_nombre", "costo_marginal_usd_mwh", "version"])
+
+    df_final = pd.concat(paginas_df, ignore_index=True)
+    logger.info(f"Extraídas {len(df_final)} filas raw ({pagina} páginas) desde la API.")
+    return df_final
+
+
+def generar_mock_costos_marginales(n_horas: int = 500, seed: int = 42) -> pd.DataFrame:
+    """Mock para desarrollo sin API token."""
+    rng = np.random.default_rng(seed)
+    barras = [
+        ("CRUCERO_______220", "S/E Crucero 220kV"),
+        ("CHARRUA_______220", "S/E Charrúa 220kV"),
+        ("A.JAHUEL______220", "S/E Alto Jahuel 220kV"),
+        ("CARDONES______220", "S/E Cardones 220kV"),
+        ("ANCOA_________220", "S/E Ancoa 220kV"),
+    ]
+    fechas = pd.date_range("2026-01-01", periods=n_horas, freq="h")
+    base_por_barra = {b[0]: v for b, v in zip(barras, [45, 60, 55, 40, 58])}
+
+    filas = []
+    for fecha in fechas:
+        for barra_codigo, barra_nombre in barras:
+            ruido = rng.normal(0, 8)
+            filas.append({
+                "fecha": fecha,
+                "barra_codigo": barra_codigo,
+                "barra_nombre": barra_nombre,
+                "costo_marginal_usd_mwh": max(round(base_por_barra[barra_codigo] + ruido, 2), 0),
+                "version": "MOCK",
+            })
+    return pd.DataFrame(filas)
