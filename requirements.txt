@@ -47,7 +47,5 @@ requests>=2.31.0
 
 # Optimizacion de Hiperparametros
 optuna>=3.6.1
-
-
 openpyxl>=3.1.0
 
