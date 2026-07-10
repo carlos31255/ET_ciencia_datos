@@ -38,11 +38,15 @@ Se implementó un ensamble avanzado de Gradient Boosting (`XGBRegressor`). Para 
 Se utilizó la librería `Optuna` con optimización Bayesiana para encontrar la mejor combinación de hiperparámetros (`learning_rate`, `n_estimators`, `max_depth`), logrando minimizar el Error Cuadrático Medio (RMSE).
 
 **Resultados y Feature Importance:**
-El modelo alcanzó un coeficiente de determinación ($R^2$) superior a 0.92, demostrando una capacidad predictiva sobresaliente. 
-El análisis de importancia de variables reveló el siguiente relato técnico:
-1. **Porcentaje de Energía Renovable (73%):** El factor más crítico que desploma o eleva el precio de la energía es la disponibilidad del sol y el viento.
-2. **Día de la Semana (12%) y Hora del Día (7%):** Capturan con precisión los patrones de comportamiento de consumo humano e industrial.
-3. **Cluster Arquetipo (6%):** Ajusta el nivel base del precio dependiendo del contexto macro-económico de la zona.
+El modelo alcanzó un coeficiente de determinación ($R^2$) superior a 0.92, demostrando una capacidad predictiva sobresaliente.
+
+*Nota Académica sobre Fuga de Datos (Data Leakage):* 
+Inicialmente, una variable simulada de % renovable dominaba el modelo (78% de importancia) por una fuga de datos, ya que era una función directa de la hora. Al identificar y retirar esa variable, el modelo redistribuyó su aprendizaje hacia las variables temporales genuinas — hora del día (82%) y día de la semana (17%) — confirmando que el costo marginal en Chile está fuertemente determinado por el ciclo diario de generación solar, consistente con la matriz energética nacional.
+
+El análisis actual de importancia de variables revela el siguiente relato técnico:
+1. **Hora del Día:** Es la variable temporal más crítica ya que captura a la perfección la "Curva de Pato" (Duck Curve) del sistema chileno. Al mediodía, el costo marginal tiende a desplomarse debido a la inyección masiva y a costo cero de las plantas solares, mientras que en la madrugada (sin sol), el precio se eleva al requerir generación térmica (carbón/GNL).
+2. **Día de la Semana:** Modula el patrón base, capturando el "efecto fin de semana" donde la disminución del consumo industrial reduce los costos estructurales del sistema.
+3. **Cluster Arquetipo:** Ajusta la línea base del precio al contextualizar geográficamente la subestación (Ej. zonas industriales en el norte minero vs. zonas residenciales).
 
 ## 4. Conclusión
 El cruce de datos económicos (PIB) con datos técnicos del Coordinador Eléctrico, procesados a través de algoritmos de Machine Learning (K-Means + XGBoost), demuestra ser una herramienta predictiva robusta. La transición desde el análisis macro (clustering) hasta la predicción micro (regresión horaria) cumple con los estándares más altos para la toma de decisiones en el sector energético.
