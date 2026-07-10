@@ -28,10 +28,10 @@ def load_models():
     try:
         kmeans_model = joblib.load(os.path.join(MODELS_DIR, 'kmeans_model.pkl'))
         scaler = joblib.load(os.path.join(MODELS_DIR, 'scaler.pkl'))
-        xgboost_regressor = joblib.load(os.path.join(MODELS_DIR, 'modelo_regresor.pkl'))
-        print("✅ Modelos cargados exitosamente en la API.")
+        xgboost_regressor = joblib.load(os.path.join(MODELS_DIR, 'modelo_xgb.pkl'))
+        print("[OK] Modelos cargados exitosamente en la API.")
     except Exception as e:
-        print(f"❌ Error al cargar los modelos. Verifica la ruta: {e}")
+        print(f"[ERROR] Error al cargar los modelos. Verifica la ruta: {e}")
 
 # Esquema de datos de entrada (Pydantic)
 class EnergyPredictionRequest(BaseModel):
