@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -51,6 +50,42 @@ def load_historical_data():
 
 df_historico = load_historical_data()
 
+
+# 1b. Carga de barras reales (para el selector de la demo)
+@st.cache_data
+def load_barras_disponibles():
+    """Trae las barras reales con sus estadísticas (costo promedio/máximo, PIB
+    de la región), para que el usuario elija una barra concreta en vez de
+    tener que inventar valores numéricos a mano -- más natural para la demo
+    y evita combinaciones de costo/PIB que no existen en la realidad.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        query = """
+        SELECT
+            b.barra_nombre,
+            b.region,
+            AVG(c.costo_marginal_usd_mwh) as costo_promedio,
+            MAX(c.costo_marginal_usd_mwh) as costo_maximo,
+            AVG(p.pib_millones_clp) as pib_millones_clp
+        FROM costos_marginales c
+        JOIN dim_barras b ON c.barra_codigo = b.barra_codigo
+        LEFT JOIN pib_regional p ON b.region = p.region
+        WHERE b.barra_nombre IS NOT NULL
+        GROUP BY b.barra_nombre, b.region
+        HAVING pib_millones_clp IS NOT NULL
+        ORDER BY b.region, b.barra_nombre
+        """
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return df
+    except Exception as e:
+        st.sidebar.warning(f"No se pudieron cargar barras reales ({e}); se usará entrada manual.")
+        return pd.DataFrame()
+
+
+df_barras = load_barras_disponibles()
+
 # Visualización de Datos Históricos (Panel Principal)
 st.subheader("📊 Histórico de Costos Marginales")
 
@@ -77,12 +112,49 @@ st.sidebar.markdown("Modifica los parámetros para predecir el costo marginal.")
 # Controles de formulario
 with st.sidebar.form("form_prediccion"):
     hora = st.slider("Hora del Día", min_value=0, max_value=23, value=14)
-    dia = st.selectbox("Día de la Semana (0=Lunes, 6=Domingo)", options=[0, 1, 2, 3, 4, 5, 6], index=2)
+    # Solo se ofrecen los días presentes en los datos de entrenamiento
+    # (2026-04-01 a 2026-04-04 = Miércoles a Sábado). Ofrecer días fuera de
+    # ese rango sería extrapolación pura -- XGBoost, al ser un modelo de
+    # árboles, no interpola/extrapola de forma confiable fuera del rango
+    # de valores que vio en el entrenamiento.
+    DIAS_DISPONIBLES = {
+        2: "Miércoles",
+        3: "Jueves",
+        4: "Viernes",
+        5: "Sábado",
+    }
+    dia = st.selectbox(
+        "Día de la Semana",
+        options=list(DIAS_DISPONIBLES.keys()),
+        format_func=lambda x: DIAS_DISPONIBLES[x],
+        index=0,
+    )
+    st.caption("⚠️ Solo se ofrecen los días presentes en los datos de entrenamiento (4 días: mié-sáb).")
     
-    st.markdown("**Variables de Entorno (Nodo)**")
-    costo_prom = st.number_input("Costo Promedio (USD)", value=58.5)
-    costo_max = st.number_input("Costo Máximo (USD)", value=145.2)
-    pib = st.number_input("PIB Regional (MM CLP)", value=19663.6)
+    st.markdown("**Barra / Nodo**")
+    if not df_barras.empty:
+        opciones_barra = df_barras["barra_nombre"] + " — " + df_barras["region"]
+        idx_seleccionado = st.selectbox(
+            "Selecciona una barra real",
+            options=range(len(df_barras)),
+            format_func=lambda i: opciones_barra.iloc[i],
+        )
+        fila = df_barras.iloc[idx_seleccionado]
+        costo_prom = float(fila["costo_promedio"])
+        costo_max = float(fila["costo_maximo"])
+        pib = float(fila["pib_millones_clp"])
+
+        # Se muestran como referencia (no editables) para transparencia:
+        # el usuario ve exactamente qué valores reales está usando el modelo.
+        col_a, col_b, col_c = st.columns(3)
+        col_a.metric("Costo Prom.", f"${costo_prom:.1f}")
+        col_b.metric("Costo Máx.", f"${costo_max:.1f}")
+        col_c.metric("PIB Región", f"{pib:,.0f}")
+    else:
+        # Fallback si no se pudo conectar a la BD: entrada manual como antes
+        costo_prom = st.number_input("Costo Promedio (USD)", value=58.5)
+        costo_max = st.number_input("Costo Máximo (USD)", value=145.2)
+        pib = st.number_input("PIB Regional (MM CLP)", value=19663.6)
     
     submit_button = st.form_submit_button("Generar Predicción")
 
