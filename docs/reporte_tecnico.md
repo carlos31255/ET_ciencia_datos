@@ -5,6 +5,11 @@ El mercado eléctrico chileno es altamente complejo y presenta una gran volatili
 
 El objetivo de este proyecto es construir un sistema de Machine Learning end-to-end que permita a las empresas del sector energía clasificar estratégicamente los nodos del país y predecir el costo horario de la energía, facilitando la toma de decisiones sobre dónde instalar nuevas plantas o cuándo consumir energía.
 
+### 1.1. Estándar de Divisa: ¿Por qué USD y no CLP?
+En este proyecto, notarás que el **Costo Marginal de la energía** se mide en **Dólares por Megavatio-hora (USD/MWh)**, mientras que el PIB regional se mantiene en Pesos Chilenos (CLP). Esta discrepancia es intencional y refleja la realidad del mercado:
+- **Dolarización de Insumos:** Gran parte de la energía en Chile se genera con combustibles importados (GNL, carbón, diésel) que se transan internacionalmente en dólares.
+- **Riesgo Cambiario y Financiamiento:** Los grandes proyectos de generación (solares, eólicos) se financian mediante deuda internacional. Para que estos proyectos sean viables y no quiebren ante la volatilidad del tipo de cambio, el mercado mayorista eléctrico opera oficialmente en dólares.
+
 ## 2. Arquitectura de Datos (ETL)
 Se construyó un pipeline ETL automatizado que integra dos fuentes de datos reales:
 1. **Coordinador Eléctrico Nacional (API REST):** Extracción de miles de registros horarios de costos marginales por barra.
