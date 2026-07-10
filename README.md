@@ -94,13 +94,19 @@ Los tres archivos `.pkl` quedan en `models/saved_models/`.
 
 ### Paso 5: Levantar el Microservicio (API)
 
-Con los `.pkl` generados, enciende el servidor FastAPI:
+**¿Qué es el microservicio en este proyecto?**
+Se trata de una aplicación backend construida con **FastAPI** (`api/main.py`). En lugar de incrustar los modelos de Machine Learning directamente en el dashboard visual, construimos este microservicio independiente que expone un endpoint REST (`/predict`). 
+Esta arquitectura desacoplada es un estándar de la industria porque permite:
+- **Escalabilidad:** Si muchas personas usan el dashboard, el microservicio que hace las predicciones pesadas puede escalar en servidores separados.
+- **Reusabilidad:** Cualquier otra aplicación (una app móvil, un sistema interno) puede conectarse a esta API para obtener predicciones sin depender de la interfaz gráfica de Streamlit.
+
+Con los `.pkl` generados en el paso anterior, enciende el servidor FastAPI:
 
 ```bash
 .\.venv\Scripts\python.exe -m uvicorn api.main:app --reload
 ```
 
-Interfaz de prueba disponible en: `http://127.0.0.1:8000/docs`
+Interfaz interactiva de prueba (Swagger UI) disponible en: `http://127.0.0.1:8000/docs`
 
 ---
 
