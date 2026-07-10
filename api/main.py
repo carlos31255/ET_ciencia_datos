@@ -28,7 +28,7 @@ def load_models():
     try:
         kmeans_model = joblib.load(os.path.join(MODELS_DIR, 'kmeans_model.pkl'))
         scaler = joblib.load(os.path.join(MODELS_DIR, 'scaler.pkl'))
-        xgboost_regressor = joblib.load(os.path.join(MODELS_DIR, 'modelo_xgb.pkl'))
+        xgboost_regressor = joblib.load(os.path.join(MODELS_DIR, 'modelo_regresor.pkl'))
         print("[OK] Modelos cargados exitosamente en la API.")
     except Exception as e:
         print(f"[ERROR] Error al cargar los modelos. Verifica la ruta: {e}")
@@ -40,7 +40,6 @@ class EnergyPredictionRequest(BaseModel):
     pib_millones_clp: float = Field(..., description="PIB de la región donde está la barra")
     hora_del_dia: int = Field(..., ge=0, le=23, description="Hora a predecir (0-23)")
     dia_semana: int = Field(..., ge=0, le=6, description="Día de la semana (0=Lunes, 6=Domingo)")
-    pct_renovable: float = Field(..., ge=0, le=100, description="Porcentaje estimado de generación renovable")
 
 class EnergyPredictionResponse(BaseModel):
     cluster_arquetipo: int
@@ -75,11 +74,19 @@ def predict_energy_cost(data: EnergyPredictionRequest):
         raise HTTPException(status_code=400, detail=f"Error en K-Means: {str(e)}")
 
     # 2. Feature Engineering para XGBoost
-    # XGBoost espera: ['hora_del_dia', 'dia_semana', 'pct_renovable', 'cluster_arquetipo']
+    # XGBoost espera: ['hora_del_dia', 'dia_semana', 'cluster_arquetipo']
+    # NOTA: 'pct_renovable' fue retirada del modelo. Se había implementado como
+    # una variable SIMULADA en función de 'hora_del_dia' (ver notebook 03), lo que
+    # introducía fuga de datos (proxy leakage): el modelo terminaba aprendiendo
+    # el patrón horario a través de esta variable falsa en vez de usar
+    # 'hora_del_dia' directamente, distorsionando la interpretación del feature
+    # importance. Se intentó reemplazarla por el dato real de generación ERNC
+    # vía el endpoint /generacion-real/v3/findByDate del SIP, pero el servicio
+    # devolvió consistentemente error 502 (InternalServerErrorException) — ver
+    # docs/reporte_tecnico.md, sección de limitaciones conocidas.
     x_reg_raw = pd.DataFrame([{
         'hora_del_dia': data.hora_del_dia,
         'dia_semana': data.dia_semana,
-        'pct_renovable': data.pct_renovable,
         'cluster_arquetipo': cluster_pred
     }])
     

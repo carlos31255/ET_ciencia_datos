@@ -145,11 +145,10 @@ with st.sidebar.form("form_prediccion"):
         pib = float(fila["pib_millones_clp"])
 
         # Se muestran como referencia (no editables) para transparencia:
-        # el usuario ve exactamente qué valores reales está usando el modelo.
-        col_a, col_b, col_c = st.columns(3)
+        col_a, col_b = st.columns(2)
         col_a.metric("Costo Prom.", f"${costo_prom:.1f}")
         col_b.metric("Costo Máx.", f"${costo_max:.1f}")
-        col_c.metric("PIB Región", f"{pib:,.0f}")
+        st.metric("PIB Regional", f"{pib:,.0f} MM CLP")
     else:
         # Fallback si no se pudo conectar a la BD: entrada manual como antes
         costo_prom = st.number_input("Costo Promedio (USD)", value=58.5)
