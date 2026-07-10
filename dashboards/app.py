@@ -76,7 +76,6 @@ st.sidebar.markdown("Modifica los parámetros para predecir el costo marginal.")
 
 # Controles de formulario
 with st.sidebar.form("form_prediccion"):
-    pct_renovable = st.slider("% Energía Renovable", min_value=0.0, max_value=100.0, value=75.0, step=1.0)
     hora = st.slider("Hora del Día", min_value=0, max_value=23, value=14)
     dia = st.selectbox("Día de la Semana (0=Lunes, 6=Domingo)", options=[0, 1, 2, 3, 4, 5, 6], index=2)
     
@@ -94,11 +93,10 @@ if submit_button:
         "costo_maximo": costo_max,
         "pib_millones_clp": pib,
         "hora_del_dia": hora,
-        "dia_semana": dia,
-        "pct_renovable": pct_renovable
+        "dia_semana": dia
     }
         
-    API_URL = "http://127.0.0.1:8000/predict"
+    API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/predict")
     
     try:
         # Un timeout corto (ej. 3 segundos) evita que la app se quede congelada si la API está caída

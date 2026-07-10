@@ -127,3 +127,19 @@ python3 -m streamlit run dashboards/app.py
 ```
 
 El panel interactivo se abrira automaticamente en tu navegador en `http://localhost:8501`.
+
+---
+
+### Paso 7: Despliegue con Docker (Opcional)
+
+Si prefieres levantar todo el sistema (API + Dashboard) en contenedores y con un solo comando, hemos preparado una arquitectura de microservicios usando Docker Compose.
+
+1. Asegúrate de tener Docker instalado y ejecutándose en tu sistema.
+2. Abre una terminal en la raíz del proyecto.
+3. Ejecuta el siguiente comando:
+
+```bash
+docker-compose up --build
+```
+
+Esto levantará tanto la API como el Dashboard conectados a la misma red interna. Podrás acceder al Dashboard en `http://localhost:8501` y a la API en `http://localhost:8000`.
