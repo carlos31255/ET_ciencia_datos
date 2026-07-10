@@ -31,12 +31,15 @@ El proyecto está diseñado bajo una arquitectura modular y escalable, cumpliend
 - `/data/`: Almacenamiento local dividido en `raw/` (datos originales) y `processed/` (datos limpios y base de datos SQL).
 - `README.md`, archivos de configuración (ej. `.env`, `.gitignore`) y scripts de automatización en la raíz del proyecto.
 
-## 🚀 Configuración y Ejecución
+## Configuracion y Ejecucion
 
-### 1. Entorno Virtual
-Para ejecutar este proyecto, es estrictamente necesario crear un entorno virtual para aislar las dependencias:
+Sigue estos pasos **en orden**. Si saltas alguno, el siguiente fallara.
 
-**En Windows (VS Code):**
+---
+
+### Paso 1: Clonar el repositorio y crear el entorno virtual
+
+**En Windows:**
 ```bash
 python -m venv .venv
 .\.venv\Scripts\activate
@@ -50,17 +53,71 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Ejecución del Pipeline (ETL)
-Asegúrate de configurar tu archivo `.env` con el token de la API del Coordinador (`COORDINADOR_API_TOKEN`). Luego, para extraer datos reales y poblar tu base de datos SQLite, ejecuta:
+---
 
-```bash
-python etl/pipeline.py --api-fecha-inicio "2026-04-01" --api-fecha-fin "2026-04-04" --api-max-paginas 50
-# (Tarda un montón en ejecutarse, se recomienda dejar corriendo solo el ETL)
+### Paso 2: Crear el archivo `.env` con el token
+
+La base de datos y el token **nunca se suben a Git** (estan en `.gitignore`).
+Cada integrante debe crear manualmente el archivo `.env` en la raiz del proyecto con este contenido:
+
+```
+COORDINADOR_API_TOKEN=aqui_va_el_token_que_te_pase_el_lider_del_equipo
 ```
 
-### 3. Levantar la API (Microservicio)
-Para encender el servidor de Machine Learning (FastAPI) y que quede escuchando peticiones:
+Sin el token, el pipeline usara datos mock que no son compatibles con los notebooks de ML.
+
+---
+
+### Paso 3: Ejecutar el Pipeline ETL
+
+Descarga los datos reales del Coordinador Electrico y genera `energia.db`. Tarda ~20 minutos para 1 dia de datos.
+
 ```bash
-uvicorn api.main:app --reload
+.\.venv\Scripts\python.exe etl/pipeline.py --api-fecha-inicio "2026-04-01" --api-fecha-fin "2026-04-01" --api-max-paginas 9999
 ```
-Una vez corriendo, puedes acceder a la interfaz de prueba en `http://127.0.0.1:8000/docs`.
+
+Cuando termine veras: `Pipeline ETL completado exitosamente.`
+
+---
+
+### Paso 4: Entrenar los Modelos de Machine Learning
+
+Abre Jupyter y ejecuta los notebooks **en este orden exacto** (Kernel > Restart and Run All en cada uno):
+
+1. `etl/01_etl_experimentacion.ipynb` — EDA y validacion del ETL
+2. `models/02_modelo_riesgo.ipynb` — K-Means + Clasificador → genera `modelo_rf.pkl` y `scaler.pkl`
+3. `models/03_modelo_regresion.ipynb` — XGBoost + Optuna → genera `modelo_regresor.pkl`
+
+Los tres archivos `.pkl` quedan en `models/saved_models/`.
+
+---
+
+### Paso 5: Levantar el Microservicio (API)
+
+Con los `.pkl` generados, enciende el servidor FastAPI:
+
+```bash
+.\.venv\Scripts\python.exe -m uvicorn api.main:app --reload
+```
+
+Interfaz de prueba disponible en: `http://127.0.0.1:8000/docs`
+
+---
+
+### Paso 6: Dashboard
+
+Para visualizar el panel de Streamlit (el simulador y los historicos), debes abrir **una segunda terminal**, activar el entorno y ejecutar la app:
+
+**En Windows:**
+```bash
+.\.venv\Scripts\activate
+python -m streamlit run dashboards/app.py
+```
+
+**En Mac/Linux:**
+```bash
+source .venv/bin/activate
+python3 -m streamlit run dashboards/app.py
+```
+
+El panel interactivo se abrira automaticamente en tu navegador en `http://localhost:8501`.

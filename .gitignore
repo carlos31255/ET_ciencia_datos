@@ -26,12 +26,8 @@ models/X_test.csv
 models/y_test.csv
 
 # ── Base de datos SQLite (generada por el ETL, no va a Git) ────────
-data/processed/energia.db
-data/processed/costos_marginales_real.csv
-data/processed/costos_marginales_mock.csv
-data/processed/pib_regional_long.csv
-data/processed/pib_totales_control.csv
-data/processed/dim_barras.csv
+data/processed/*.db
+data/processed/*.csv
 
 # ── Sistema operativo ────────────────────────────────────────────
 .DS_Store
