@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: sen_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models/saved_models:/app/models/saved_models
+    networks:
+      - sen_network
+    restart: always
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: sen_dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000/predict
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - api
+    networks:
+      - sen_network
+    restart: always
+
+networks:
+  sen_network:
+    driver: bridge
