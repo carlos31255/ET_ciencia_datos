@@ -94,9 +94,9 @@ def ejecutar_pipeline(
     engine = create_engine(db_url)
     crear_esquema(engine)
     
-    cargar_a_sql(df_pib, "pib_regional", engine)
-    cargar_a_sql(df_costos, "costos_marginales", engine)
-    cargar_a_sql(df_barras, "dim_barras", engine)
+    cargar_a_sql(df_pib, "pib_regional", engine, si_existe="replace")
+    cargar_a_sql(df_costos, "costos_marginales", engine, si_existe="append")
+    cargar_a_sql(df_barras, "dim_barras", engine, si_existe="replace")
 
     logger.info("Pipeline ETL completado exitosamente.")
 
